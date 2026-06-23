@@ -1,5 +1,9 @@
 package com.prezto.prezto.feature_explore.presentation.item_detail
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -9,6 +13,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Verified
@@ -18,6 +23,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.core.content.ContextCompat
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -44,6 +50,19 @@ fun ItemDetailScreen(
     viewModel: ItemDetailViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
+    val context = LocalContext.current
+
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted -> if (granted) viewModel.calculateDistance() }
+
+    val onCalculateDistance: () -> Unit = {
+        val granted = ContextCompat.checkSelfPermission(
+            context, Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        if (granted) viewModel.calculateDistance()
+        else locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+    }
 
     Scaffold(
         topBar = {
@@ -100,6 +119,9 @@ fun ItemDetailScreen(
                         quote = state.quote!!,
                         selectedDays = state.selectedDays,
                         onDaysChanged = viewModel::onDaysChanged,
+                        distanceKm = state.distanceKm,
+                        isCalculatingDistance = state.isCalculatingDistance,
+                        onCalculateDistance = onCalculateDistance,
                         modifier = Modifier.padding(bottom = paddingValues.calculateBottomPadding())
                     )
                 }
@@ -114,6 +136,9 @@ private fun ItemDetailContent(
     quote: RentalQuote,
     selectedDays: Int,
     onDaysChanged: (Int) -> Unit,
+    distanceKm: Double?,
+    isCalculatingDistance: Boolean,
+    onCalculateDistance: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.verticalScroll(rememberScrollState())) {
@@ -163,6 +188,13 @@ private fun ItemDetailContent(
                 style = MaterialTheme.typography.labelLarge,
                 color = conditionColor,
                 fontWeight = FontWeight.Bold
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+            ProximitySection(
+                distanceKm = distanceKm,
+                isCalculating = isCalculatingDistance,
+                onCalculate = onCalculateDistance
             )
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -244,6 +276,58 @@ private fun DaySelector(selectedDays: Int, onDaysChanged: (Int) -> Unit) {
                 )
             ) {
                 Icon(Icons.Default.Add, contentDescription = "Más días")
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProximitySection(
+    distanceKm: Double?,
+    isCalculating: Boolean,
+    onCalculate: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(16.dp))
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Default.LocationOn,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(24.dp)
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "Cercanía",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = when {
+                    distanceKm != null -> "A ${"%.1f".format(distanceKm)} km de distancia"
+                    else -> "Ubicación no disponible"
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        if (distanceKm == null) {
+            if (isCalculating) {
+                CircularProgressIndicator(
+                    color = MaterialTheme.colorScheme.primary,
+                    strokeWidth = 2.dp,
+                    modifier = Modifier.size(20.dp)
+                )
+            } else {
+                TextButton(onClick = onCalculate) {
+                    Text("Calcular distancia", fontWeight = FontWeight.Bold)
+                }
             }
         }
     }

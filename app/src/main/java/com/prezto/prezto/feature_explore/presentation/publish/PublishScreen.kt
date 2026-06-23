@@ -1,5 +1,7 @@
 package com.prezto.prezto.feature_explore.presentation.publish
 
+import android.Manifest
+import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -22,6 +24,7 @@ import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Handyman
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -37,6 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -56,10 +60,25 @@ fun PublishScreen(
     val state by viewModel.state.collectAsState()
     val scrollState = rememberScrollState()
 
+    val context = LocalContext.current
+
     val pickMediaLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri ->
         viewModel.onImageSelected(uri?.toString())
+    }
+
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted -> if (granted) viewModel.captureCurrentLocation() }
+
+    // Captura la ubicación del artículo al abrir el formulario.
+    LaunchedEffect(Unit) {
+        val granted = ContextCompat.checkSelfPermission(
+            context, Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        if (granted) viewModel.captureCurrentLocation()
+        else locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
     }
 
     LaunchedEffect(state.isSuccess) {
@@ -197,6 +216,12 @@ fun PublishScreen(
                 EarningsHint(dailyRate = state.parsedRate ?: 0.0)
             }
 
+            Spacer(modifier = Modifier.height(24.dp))
+
+            SectionLabel("Ubicación del artículo")
+            Spacer(modifier = Modifier.height(8.dp))
+            LocationCard(hasLocation = state.hasLocation)
+
             Spacer(modifier = Modifier.height(120.dp))
         }
     }
@@ -275,6 +300,47 @@ private fun PhotoPlaceholder(
                     style = MaterialTheme.typography.bodySmall
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun LocationCard(hasLocation: Boolean) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(16.dp))
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Default.LocationOn,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(24.dp)
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "La herramienta se registrará en tu ubicación actual",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = if (hasLocation) "Ubicación detectada correctamente"
+                else "Obteniendo tu ubicación...",
+                style = MaterialTheme.typography.bodySmall,
+                color = if (hasLocation) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        if (!hasLocation) {
+            CircularProgressIndicator(
+                color = MaterialTheme.colorScheme.primary,
+                strokeWidth = 2.dp,
+                modifier = Modifier.size(20.dp)
+            )
         }
     }
 }

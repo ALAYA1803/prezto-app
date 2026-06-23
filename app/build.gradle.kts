@@ -71,6 +71,9 @@ dependencies {
     // Persistencia de sesión cifrada
     implementation("androidx.datastore:datastore-preferences:1.1.1")
 
+    // Geolocalización (filtro por cercanía)
+    implementation("com.google.android.gms:play-services-location:21.3.0")
+
     // Capa de red (motor de sesiones / tokens)
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
     implementation("com.squareup.retrofit2:converter-gson:2.11.0")

@@ -2,6 +2,8 @@ package com.prezto.prezto.feature_explore.presentation.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.prezto.prezto.core.data.location.LocationProvider
+import com.prezto.prezto.core.domain.location.GeoLocation
 import com.prezto.prezto.core.data.network.ErrorMapper
 import com.prezto.prezto.core.util.logging.PreztoLogger
 import com.prezto.prezto.feature_explore.domain.usecase.GetCategoriesUseCase
@@ -20,6 +22,7 @@ import javax.inject.Inject
 class HomeViewModel @Inject constructor(
     private val getCategoriesUseCase: GetCategoriesUseCase,
     private val getFeaturedItemsUseCase: GetFeaturedItemsUseCase,
+    private val locationProvider: LocationProvider,
     private val errorMapper: ErrorMapper,
     private val logger: PreztoLogger
 ) : ViewModel() {
@@ -43,6 +46,35 @@ class HomeViewModel @Inject constructor(
         it.copy(selectedCategoryId = newSelection)
     }
 
+    /** Mueve el radio de cercanía; el filtrado es reactivo (estado derivado en HomeState). */
+    fun onRadiusChange(radiusKm: Float) =
+        _state.update { it.copy(searchRadiusKm = radiusKm) }
+
+    /** Tras conceder el permiso, obtiene la ubicación y activa el filtro por cercanía. */
+    fun onLocationPermissionGranted() {
+        viewModelScope.launch {
+            val location = locationProvider.getCurrentLocation()
+            _state.update { it.copy(userLocation = location, locationPermissionDenied = false) }
+            recomputeDistances()
+        }
+    }
+
+    /** Calcula la distancia a cada ítem UNA sola vez (al cargar o al obtener la ubicación). */
+    private fun recomputeDistances() {
+        val location = _state.value.userLocation
+        if (location == null) {
+            _state.update { it.copy(itemDistances = emptyMap()) }
+            return
+        }
+        val distances = _state.value.allItems.associate { item ->
+            item.id to location.distanceKmTo(GeoLocation(item.latitude, item.longitude))
+        }
+        _state.update { it.copy(itemDistances = distances) }
+    }
+
+    fun onLocationPermissionDenied() =
+        _state.update { it.copy(locationPermissionDenied = true) }
+
     private fun loadHomeData() {
         viewModelScope.launch {
             getCategoriesUseCase()
@@ -55,6 +87,7 @@ class HomeViewModel @Inject constructor(
                 .catch { exception -> handleError(exception) }
                 .collect { itemsList ->
                     _state.update { it.copy(allItems = itemsList, isLoading = false) }
+                    recomputeDistances()
                 }
         }
     }

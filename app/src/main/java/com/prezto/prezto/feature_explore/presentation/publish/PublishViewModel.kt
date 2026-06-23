@@ -2,10 +2,13 @@ package com.prezto.prezto.feature_explore.presentation.publish
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.prezto.prezto.feature_explore.domain.model.ItemCondition
+import com.prezto.prezto.core.data.location.LocationProvider
+import com.prezto.prezto.core.domain.model.TrustScore
+import com.prezto.prezto.feature_explore.domain.model.Item
+import com.prezto.prezto.feature_explore.domain.model.Owner
 import com.prezto.prezto.feature_explore.domain.usecase.GetCategoriesUseCase
+import com.prezto.prezto.feature_explore.domain.usecase.PublishItemUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,7 +18,9 @@ import javax.inject.Inject
 
 @HiltViewModel
 class PublishViewModel @Inject constructor(
-    private val getCategoriesUseCase: GetCategoriesUseCase
+    private val getCategoriesUseCase: GetCategoriesUseCase,
+    private val publishItemUseCase: PublishItemUseCase,
+    private val locationProvider: LocationProvider
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(PublishState())
@@ -30,6 +35,14 @@ class PublishViewModel @Inject constructor(
             getCategoriesUseCase().collect { categories ->
                 _state.update { it.copy(categories = categories) }
             }
+        }
+    }
+
+    /** Captura la ubicación actual como ubicación del artículo (tras conceder el permiso). */
+    fun captureCurrentLocation() {
+        viewModelScope.launch {
+            val location = locationProvider.getCurrentLocation() ?: return@launch
+            _state.update { it.copy(latitude = location.latitude, longitude = location.longitude) }
         }
     }
 
@@ -48,7 +61,7 @@ class PublishViewModel @Inject constructor(
     fun onImageSelected(uri: String?) =
         _state.update { it.copy(selectedImageUri = uri) }
 
-    fun onConditionSelected(condition: ItemCondition) =
+    fun onConditionSelected(condition: com.prezto.prezto.feature_explore.domain.model.ItemCondition) =
         _state.update { it.copy(condition = condition) }
 
     fun publishTool() {
@@ -68,13 +81,30 @@ class PublishViewModel @Inject constructor(
             hasError = true
         }
 
-        if (hasError || s.selectedCategoryId == null) return
+        if (hasError || s.selectedCategoryId == null || s.latitude == null || s.longitude == null) return
 
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true, error = null) }
-            // Simulación de subida al backend (futuro: PublishToolUseCase + repositorio real).
-            delay(1500)
+            val item = Item(
+                id = "item_${System.currentTimeMillis()}",
+                categoryId = s.selectedCategoryId,
+                title = s.title.trim(),
+                description = s.description.trim(),
+                dailyRate = s.parsedRate!!,
+                hourlyRate = s.parsedRate!! / 5.0,
+                currentCondition = s.condition,
+                isAvailable = true,
+                imageUrl = s.selectedImageUri.orEmpty(),
+                owner = currentOwner(),
+                latitude = s.latitude,
+                longitude = s.longitude
+            )
+            publishItemUseCase(item)
             _state.update { it.copy(isLoading = false, isSuccess = true) }
         }
     }
+
+    // MOCK: el propietario actual vendrá de un UserRepository real.
+    private fun currentOwner(): Owner =
+        Owner(id = "usr_99", name = "Rodrigo A.", trustScore = TrustScore(4.9), isVerified = true)
 }

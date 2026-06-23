@@ -9,4 +9,5 @@ interface ExploreRepository {
     fun getFeaturedItems(): Flow<List<Item>>
     fun getItemsByCategory(categoryId: String): Flow<List<Item>>
     suspend fun getItemById(itemId: String): Item?
+    suspend fun publishItem(item: Item)
 }

@@ -22,5 +22,7 @@ data class Item(
     val currentCondition: ItemCondition,
     val isAvailable: Boolean,
     val imageUrl: String,
-    val owner: Owner
+    val owner: Owner,
+    val latitude: Double,
+    val longitude: Double
 )

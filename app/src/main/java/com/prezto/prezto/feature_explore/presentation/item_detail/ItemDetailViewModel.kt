@@ -3,7 +3,9 @@ package com.prezto.prezto.feature_explore.presentation.item_detail
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.prezto.prezto.core.data.location.LocationProvider
 import com.prezto.prezto.core.data.network.ErrorMapper
+import com.prezto.prezto.core.domain.location.GeoLocation
 import com.prezto.prezto.core.util.logging.PreztoLogger
 import com.prezto.prezto.feature_explore.domain.model.RentalQuote
 import com.prezto.prezto.feature_explore.domain.usecase.GetItemByIdUseCase
@@ -18,6 +20,7 @@ import javax.inject.Inject
 @HiltViewModel
 class ItemDetailViewModel @Inject constructor(
     private val getItemByIdUseCase: GetItemByIdUseCase,
+    private val locationProvider: LocationProvider,
     private val errorMapper: ErrorMapper,
     private val logger: PreztoLogger,
     savedStateHandle: SavedStateHandle
@@ -34,6 +37,22 @@ class ItemDetailViewModel @Inject constructor(
 
     /** Reintento expuesto al ErrorView. */
     fun onRetry() = loadItem()
+
+    /** Disparado por el botón "Calcular distancia" tras conceder el permiso. */
+    fun calculateDistance() {
+        val item = _state.value.item ?: return
+        viewModelScope.launch {
+            _state.update { it.copy(isCalculatingDistance = true) }
+            computeDistance(item.latitude, item.longitude)
+            _state.update { it.copy(isCalculatingDistance = false) }
+        }
+    }
+
+    private suspend fun computeDistance(lat: Double, lng: Double) {
+        val userLocation = locationProvider.getCurrentLocation() ?: return
+        val distance = userLocation.distanceKmTo(GeoLocation(lat, lng))
+        _state.update { it.copy(distanceKm = distance) }
+    }
 
     fun onDaysChanged(delta: Int) {
         val item = _state.value.item ?: return
@@ -58,6 +77,8 @@ class ItemDetailViewModel @Inject constructor(
                     val days = _state.value.selectedDays
                     val quote = RentalQuote.forDays(result, days)
                     _state.update { it.copy(isLoading = false, item = result, quote = quote) }
+                    // Calcula la distancia UNA sola vez si ya hay permiso de ubicación.
+                    computeDistance(result.latitude, result.longitude)
                 } else {
                     _state.update { it.copy(isLoading = false, error = "La herramienta ya no está disponible") }
                 }

@@ -26,7 +26,7 @@ class MockExploreRepositoryImpl : ExploreRepository {
     private val sofia = Owner("user_104", "Sofía R.", TrustScore(5.0), isVerified = true)
     private val marco = Owner("user_105", "Marco T.", TrustScore(4.2), isVerified = true)
 
-    private val mockItems = listOf(
+    private val mockItems = mutableListOf(
         Item(
             id = "item_001",
             categoryId = "c1",
@@ -37,7 +37,9 @@ class MockExploreRepositoryImpl : ExploreRepository {
             currentCondition = ItemCondition.GOOD,
             isAvailable = true,
             imageUrl = "https://images.unsplash.com/photo-1504148455328-c376907d081c?q=80&w=800&auto=format&fit=crop",
-            owner = rodrigo
+            owner = rodrigo,
+            latitude = -12.0776,
+            longitude = -77.0896
         ),
         Item(
             id = "item_002",
@@ -49,7 +51,9 @@ class MockExploreRepositoryImpl : ExploreRepository {
             currentCondition = ItemCondition.NEW,
             isAvailable = true,
             imageUrl = "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?q=80&w=800&auto=format&fit=crop",
-            owner = carla
+            owner = carla,
+            latitude = -12.1027,
+            longitude = -77.0286
         ),
         Item(
             id = "item_003",
@@ -61,7 +65,9 @@ class MockExploreRepositoryImpl : ExploreRepository {
             currentCondition = ItemCondition.GOOD,
             isAvailable = true,
             imageUrl = "https://images.unsplash.com/photo-1610433572201-110753c6cff9?q=80&w=800&auto=format&fit=crop",
-            owner = sofia
+            owner = sofia,
+            latitude = -12.1464,
+            longitude = -77.0220
         ),
         Item(
             id = "item_004",
@@ -73,7 +79,9 @@ class MockExploreRepositoryImpl : ExploreRepository {
             currentCondition = ItemCondition.FAIR,
             isAvailable = true,
             imageUrl = "https://images.unsplash.com/photo-1620230874645-0d2b7c8f2f3a?q=80&w=800&auto=format&fit=crop",
-            owner = luis
+            owner = luis,
+            latitude = -12.0464,
+            longitude = -77.0428
         ),
         Item(
             id = "item_005",
@@ -85,7 +93,9 @@ class MockExploreRepositoryImpl : ExploreRepository {
             currentCondition = ItemCondition.GOOD,
             isAvailable = true,
             imageUrl = "https://images.unsplash.com/photo-1599629954294-14df9ec8506b?q=80&w=800&auto=format&fit=crop",
-            owner = marco
+            owner = marco,
+            latitude = -11.9900,
+            longitude = -77.0600
         )
     )
 
@@ -99,4 +109,9 @@ class MockExploreRepositoryImpl : ExploreRepository {
 
     override suspend fun getItemById(itemId: String): Item? =
         mockItems.find { it.id == itemId }
+
+    override suspend fun publishItem(item: Item) {
+        // El ítem nuevo se agrega al inicio con sus coordenadas fijas.
+        mockItems.add(0, item)
+    }
 }

@@ -140,7 +140,9 @@ fun ItemCardPreview() {
                     currentCondition = ItemCondition.GOOD,
                     isAvailable = true,
                     imageUrl = "",
-                    owner = Owner("u1", "Rodrigo A.", TrustScore(4.9), isVerified = true)
+                    owner = Owner("u1", "Rodrigo A.", TrustScore(4.9), isVerified = true),
+                    latitude = -12.0776,
+                    longitude = -77.0896
                 ),
                 onItemClick = {}
             )

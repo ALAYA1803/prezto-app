@@ -1,5 +1,10 @@
 package com.prezto.prezto.feature_explore.presentation.home
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -11,21 +16,31 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.prezto.prezto.core.designsystem.EmptyView
 import com.prezto.prezto.core.designsystem.ErrorView
 import com.prezto.prezto.feature_explore.domain.model.Category
 import com.prezto.prezto.feature_explore.presentation.home.components.ItemCard
+import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,8 +53,27 @@ fun HomeScreen(
     hasNotifications: Boolean = false
 ) {
     val state by viewModel.state.collectAsState()
+    val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+
+    // Solicitud de permiso de ubicación al abrir la pantalla.
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) viewModel.onLocationPermissionGranted() else viewModel.onLocationPermissionDenied()
+    }
+
+    LaunchedEffect(Unit) {
+        val alreadyGranted = ContextCompat.checkSelfPermission(
+            context, Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        if (alreadyGranted) viewModel.onLocationPermissionGranted()
+        else locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+    }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
@@ -58,6 +92,17 @@ fun HomeScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = {
+                        scope.launch {
+                            snackbarHostState.showSnackbar("Mapa interactivo disponible en la próxima actualización")
+                        }
+                    }) {
+                        Icon(
+                            imageVector = Icons.Default.Map,
+                            contentDescription = "Ver mapa",
+                            tint = MaterialTheme.colorScheme.onBackground
+                        )
+                    }
                     Box {
                         IconButton(onClick = onNavigateToInbox) {
                             Icon(
@@ -127,7 +172,9 @@ fun HomeScreen(
 
                 else -> {
                     LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .animateContentSize(),
                         contentPadding = PaddingValues(16.dp),
                         verticalArrangement = Arrangement.spacedBy(24.dp)
                     ) {
@@ -151,9 +198,21 @@ fun HomeScreen(
                                 onCategoryClick = viewModel::onCategorySelected
                             )
                         }
+
+                        if (state.isLocationEnabled) {
+                            item {
+                                RadiusFilter(
+                                    radiusKm = state.searchRadiusKm,
+                                    onRadiusChange = viewModel::onRadiusChange
+                                )
+                            }
+                        } else if (state.locationPermissionDenied) {
+                            item { LocationDeniedBanner() }
+                        }
+
                         item {
                             Text(
-                                text = if (state.selectedCategoryId == null && state.searchQuery.isBlank())
+                                text = if (state.selectedCategoryId == null && state.searchQuery.isBlank() && !state.isLocationEnabled)
                                     "Herramientas Destacadas" else "Resultados",
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold,
@@ -182,6 +241,75 @@ fun HomeScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun RadiusFilter(
+    radiusKm: Float,
+    onRadiusChange: (Float) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(16.dp))
+            .padding(16.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Default.Tune,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "Radio de búsqueda",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = "${radiusKm.roundToInt()} km",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.ExtraBold,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+        Slider(
+            value = radiusKm,
+            onValueChange = onRadiusChange,
+            valueRange = HomeState.MIN_RADIUS_KM..HomeState.MAX_RADIUS_KM,
+            colors = SliderDefaults.colors(
+                thumbColor = MaterialTheme.colorScheme.primary,
+                activeTrackColor = MaterialTheme.colorScheme.primary
+            )
+        )
+    }
+}
+
+@Composable
+private fun LocationDeniedBanner() {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(16.dp))
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Default.LocationOn,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(24.dp)
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text = "Activa tu ubicación para encontrar herramientas cerca de ti y filtrar por distancia.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 

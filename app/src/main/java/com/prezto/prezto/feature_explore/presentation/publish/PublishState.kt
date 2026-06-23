@@ -15,6 +15,9 @@ data class PublishState(
     val condition: ItemCondition = ItemCondition.GOOD,
     /** URI de la imagen elegida en la galería (String para sobrevivir a recreaciones). */
     val selectedImageUri: String? = null,
+    /** Coordenadas capturadas del dispositivo (ubicación del artículo). */
+    val latitude: Double? = null,
+    val longitude: Double? = null,
     val isLoading: Boolean = false,
     val isSuccess: Boolean = false,
     val error: String? = null
@@ -31,5 +34,8 @@ data class PublishState(
         get() = title.trim().length >= 5 &&
                 description.trim().length >= 20 &&
                 parsedRate != null &&
-                selectedCategoryId != null
+                selectedCategoryId != null &&
+                latitude != null && longitude != null
+
+    val hasLocation: Boolean get() = latitude != null && longitude != null
 }
